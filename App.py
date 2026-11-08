@@ -31,6 +31,29 @@ init_db()
 # --------------------------------------------------------------------------- #
 # Helpers
 # --------------------------------------------------------------------------- #
+def _build_share_url(public_id: str) -> str:
+    """Build a full absolute share URL for a request, derived from the current
+    page URL so it works both locally and on Streamlit Cloud."""
+    base = ""
+    # Newer Streamlit exposes the current URL via st.context.
+    try:
+        base = (getattr(st.context, "url", "") or "").split("?")[0]
+    except Exception:
+        base = ""
+    if not base:
+        # Fallback: reconstruct from request headers.
+        try:
+            headers = st.context.headers
+            host = headers.get("Host", "")
+            proto = headers.get("X-Forwarded-Proto", "https" if ":" not in host else "http")
+            if host:
+                base = f"{proto}://{host}"
+        except Exception:
+            base = ""
+    base = base.rstrip("/")
+    return f"{base}/?r={public_id}" if base else f"?r={public_id}"
+
+
 def _get_or_create_song(session, track: dict) -> Song:
     """Find an existing Song by ISRC/title+artist, else create it."""
     song = None
@@ -137,12 +160,13 @@ def page_create_request():
         finally:
             session.close()
 
+        share_url = _build_share_url(public_id)
         st.success("Request created! Share this link with your friend:")
-        st.code(f"?r={public_id}", language="text")
+        st.code(share_url, language="text")
+        st.markdown(f"👉 [Open the suggest page]({share_url})")
         st.caption(
-            "On a deployed app this becomes a full URL like "
-            f"`https://your-app.streamlit.app/?r={public_id}`. "
-            "Open it (or paste the `?r=...` into the address bar) to try the suggest flow."
+            "Copy the link above and send it to your friend. They just open it, "
+            "enter their name, and pick their 5 best songs."
         )
 
 
